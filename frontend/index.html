@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PNG → Live2D PSD</title>
+    <style>
+      body { font-family: sans-serif; margin: 0; padding: 16px; background: #111; color: #f3f3f3; }
+      .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+      .panel { background: #1f1f1f; padding: 12px; border-radius: 8px; }
+      button, input { padding: 8px; border-radius: 6px; border: 1px solid #555; background: #2d2d2d; color: #fff; }
+      #canvas { max-width: min(90vw, 900px); border: 1px solid #444; cursor: crosshair; }
+      #layers img { width: 120px; border: 1px solid #444; border-radius: 4px; margin-right: 8px; }
+    </style>
+  </head>
+  <body>
+    <h1>PNG1枚 → Live2D向けPSD生成</h1>
+
+    <div class="row panel">
+      <input type="file" id="fileInput" accept="image/png" />
+      <button id="uploadBtn">アップロード</button>
+      <button id="inpaintBtn">のりしろ補完</button>
+      <button id="exportBtn">PSD書き出し</button>
+    </div>
+
+    <div class="row">
+      <div class="panel">
+        <p>画像をクリックして部位マスクを追加（SAM2クリック選択）。</p>
+        <canvas id="canvas"></canvas>
+      </div>
+      <div class="panel">
+        <p>抽出レイヤー</p>
+        <div id="layers"></div>
+      </div>
+    </div>
+
+    <script src="/frontend/app.js"></script>
+  </body>
+</html>
