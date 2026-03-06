@@ -9,28 +9,39 @@
       .row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
       .panel { background: #1f1f1f; padding: 12px; border-radius: 8px; }
       button, input { padding: 8px; border-radius: 6px; border: 1px solid #555; background: #2d2d2d; color: #fff; }
-      #canvas { max-width: min(90vw, 900px); border: 1px solid #444; cursor: crosshair; }
-      #layers img { width: 120px; border: 1px solid #444; border-radius: 4px; margin-right: 8px; }
+      #canvasWrap { position: relative; width: fit-content; }
+      #canvas, #overlayCanvas { max-width: min(90vw, 900px); border: 1px solid #444; cursor: crosshair; }
+      #overlayCanvas { position: absolute; left: 0; top: 0; pointer-events: none; }
+      #layers img, #candidates img { width: 120px; border: 1px solid #444; border-radius: 4px; margin-right: 8px; margin-bottom: 8px; background: #0f0f0f; }
+      #candidates { max-height: 300px; overflow: auto; }
     </style>
   </head>
   <body>
-    <h1>PNG1枚 → Live2D向けPSD生成</h1>
+    <h1>PNG1枚 → Live2D向けPSD生成（SAM2候補クリック選択）</h1>
 
     <div class="row panel">
       <input type="file" id="fileInput" accept="image/png" />
       <button id="uploadBtn">アップロード</button>
       <button id="inpaintBtn">のりしろ補完</button>
       <button id="exportBtn">PSD書き出し</button>
+      <span id="status"></span>
     </div>
 
     <div class="row">
       <div class="panel">
-        <p>画像をクリックして部位マスクを追加（SAM2クリック選択）。</p>
-        <canvas id="canvas"></canvas>
+        <p>画像をクリックすると、候補マスクから部位を選択してレイヤー化します。</p>
+        <div id="canvasWrap">
+          <canvas id="canvas"></canvas>
+          <canvas id="overlayCanvas"></canvas>
+        </div>
       </div>
-      <div class="panel">
+      <div class="panel" style="min-width: 260px;">
         <p>抽出レイヤー</p>
         <div id="layers"></div>
+      </div>
+      <div class="panel" style="min-width: 260px;">
+        <p>SAM2候補プレビュー（先頭48件）</p>
+        <div id="candidates"></div>
       </div>
     </div>
 
