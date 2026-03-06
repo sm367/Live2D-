@@ -27,6 +27,7 @@ class LayerData:
 class SessionData:
     image_bgr: np.ndarray
     inpainted_bgr: np.ndarray
+    candidates: list[np.ndarray] = field(default_factory=list)
     layers: list[LayerData] = field(default_factory=list)
 
 
@@ -61,6 +62,17 @@ frontend_dir = Path(__file__).resolve().parents[1] / "frontend"
 app.mount("/frontend", StaticFiles(directory=str(frontend_dir)), name="frontend")
 
 
+def _mask_to_png_data_url(mask: np.ndarray, color: tuple[int, int, int] = (57, 169, 255), alpha: int = 110) -> str:
+    h, w = mask.shape[:2]
+    rgba = np.zeros((h, w, 4), dtype=np.uint8)
+    rgba[mask == 1, 0] = color[2]
+    rgba[mask == 1, 1] = color[1]
+    rgba[mask == 1, 2] = color[0]
+    rgba[mask == 1, 3] = alpha
+    _, png = cv2.imencode(".png", rgba)
+    return f"data:image/png;base64,{base64.b64encode(png.tobytes()).decode('utf-8')}"
+
+
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(frontend_dir / "index.html")
@@ -85,10 +97,20 @@ async def create_session(file: UploadFile = File(...)) -> JSONResponse:
         image_bgr = image
 
     sid = str(uuid.uuid4())
-    sessions[sid] = SessionData(image_bgr=image_bgr, inpainted_bgr=image_bgr.copy())
+    candidates = sam2_service.generate_candidates(image_bgr)
+    sessions[sid] = SessionData(image_bgr=image_bgr, inpainted_bgr=image_bgr.copy(), candidates=candidates)
 
     h, w = image_bgr.shape[:2]
-    return JSONResponse({"session_id": sid, "width": w, "height": h})
+    candidate_previews = [_mask_to_png_data_url(mask) for mask in candidates[:24]]
+    return JSONResponse(
+        {
+            "session_id": sid,
+            "width": w,
+            "height": h,
+            "candidate_count": len(candidates),
+            "candidate_previews": candidate_previews,
+        }
+    )
 
 
 @app.post("/api/session/{session_id}/mask")
@@ -97,14 +119,36 @@ def add_mask(session_id: str, payload: ClickPayload) -> JSONResponse:
     if session is None:
         raise HTTPException(status_code=404, detail="セッションが見つかりません")
 
-    mask = sam2_service.segment_by_click(session.image_bgr, payload.x, payload.y, payload.positive)
+    if not session.candidates:
+        session.candidates = sam2_service.generate_candidates(session.image_bgr)
+
+    mask = sam2_service.select_candidate_by_click(session.candidates, payload.x, payload.y)
+    if not payload.positive:
+        mask = 1 - mask
+
     rgba = inpaint_service.cutout_rgba(session.image_bgr, mask)
     layer_name = payload.layer_name or f"part_{len(session.layers)+1}"
     session.layers.append(LayerData(name=layer_name, mask=mask, rgba=rgba))
 
     _, png = cv2.imencode(".png", rgba)
     b64 = base64.b64encode(png.tobytes()).decode("utf-8")
-    return JSONResponse({"layer_index": len(session.layers) - 1, "preview": f"data:image/png;base64,{b64}"})
+    return JSONResponse(
+        {
+            "layer_index": len(session.layers) - 1,
+            "preview": f"data:image/png;base64,{b64}",
+            "selected_mask_overlay": _mask_to_png_data_url(mask, color=(88, 239, 123), alpha=100),
+        }
+    )
+
+
+@app.get("/api/session/{session_id}/candidates")
+def list_candidates(session_id: str) -> JSONResponse:
+    session = sessions.get(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="セッションが見つかりません")
+
+    previews = [_mask_to_png_data_url(mask) for mask in session.candidates[:48]]
+    return JSONResponse({"candidate_count": len(session.candidates), "candidate_previews": previews})
 
 
 @app.post("/api/session/{session_id}/inpaint")
